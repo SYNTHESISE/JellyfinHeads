@@ -4,9 +4,9 @@ import os
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import unquote
 
-JELLYFIN_DB = "ENTER THE PATH TO YOUR JELLYFIN DB HERE"  # change this
+JELLYFIN_DB = "/home/andy/.var/app/org.jellyfin.JellyfinServer/data/jellyfin/data/jellyfin.db"  # change this
 
-QUERY = """
+QUERY_OLD = """
 SELECT
     series.Name AS Title,
     CASE
@@ -33,6 +33,77 @@ WHERE bi.Type IN ('Movie', 'Series', 'MediaBrowser.Controller.Entities.TV.Episod
   AND pii.Path IS NOT NULL
 """
 
+QUERY = """
+WITH CharacterAppearances AS (
+    SELECT
+        series.Id AS SeriesId,
+        series.Name AS SeriesName,
+        p.Name AS Performer,
+        pbim.Role AS Character,
+        COUNT(DISTINCT bi.Id) AS EpisodeCount
+    FROM BaseItems bi
+    JOIN PeopleBaseItemMap pbim
+        ON pbim.ItemId = bi.Id
+    JOIN Peoples p
+        ON p.Id = pbim.PeopleId
+    JOIN BaseItems series
+        ON series.Id = bi.SeriesId
+    WHERE pbim.Role IS NOT NULL
+      AND pbim.Role <> ''
+	  AND lower(pbim.Role) not in ('producer', 'writer', 'director', 'himself', 'herself', 'self')
+    GROUP BY
+        series.Id,
+        series.Name,
+        p.Name,
+        pbim.Role
+),
+SeriesEpisodeCounts AS (
+    SELECT
+        SeriesId,
+        COUNT(*) AS TotalEpisodes
+    FROM BaseItems
+    WHERE SeriesId IS NOT NULL
+    GROUP BY SeriesId
+)
+SELECT DISTINCT
+    ca.SeriesName AS Title,
+    ca.Performer,
+    ca.Character,
+    pii.Path AS ImagePath
+FROM CharacterAppearances ca
+JOIN SeriesEpisodeCounts sec
+    ON sec.SeriesId = ca.SeriesId
+JOIN Peoples p
+    ON p.Name = ca.Performer
+LEFT JOIN BaseItems personItem
+    ON personItem.Name = p.Name
+LEFT JOIN BaseItemImageInfos pii
+    ON pii.ItemId = personItem.Id
+WHERE CAST(ca.EpisodeCount AS FLOAT) / sec.TotalEpisodes >= 0.30
+  AND pii.Path IS NOT NULL
+
+UNION
+
+SELECT DISTINCT
+    bi.Name AS Title,
+    p.Name AS Performer,
+    pbim.Role AS Character,
+    pii.Path AS ImagePath
+FROM BaseItems bi
+JOIN PeopleBaseItemMap pbim
+    ON pbim.ItemId = bi.Id
+JOIN Peoples p
+    ON p.Id = pbim.PeopleId
+LEFT JOIN BaseItems personItem
+    ON personItem.Name = p.Name
+LEFT JOIN BaseItemImageInfos pii
+    ON pii.ItemId = personItem.Id
+WHERE bi.SeriesId IS NULL
+  AND pbim.Role IS NOT NULL
+  AND pbim.Role <> ''
+  AND lower(pbim.Role) not in ('producer', 'writer', 'director', 'himself', 'herself', 'self')
+  AND pii.Path IS NOT NULL;
+"""
 def get_random_character():
     conn = sqlite3.connect(JELLYFIN_DB)
     conn.row_factory = sqlite3.Row
@@ -121,8 +192,6 @@ class Handler(BaseHTTPRequestHandler):
             </head>
 
             <body>
-
-            <h1>Random Character</h1>
 
             <div class="character">
                 {character["Character"]}
