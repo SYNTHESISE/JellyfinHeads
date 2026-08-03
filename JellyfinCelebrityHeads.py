@@ -4,7 +4,7 @@ import os
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import unquote
 
-JELLYFIN_DB = "/home/andy/.var/app/org.jellyfin.JellyfinServer/data/jellyfin/data/jellyfin.db"  # change this
+JELLYFIN_DB = "INSERT JELLYFIN DATABASE PATH"  # change this
 
 QUERY_OLD = """
 SELECT
