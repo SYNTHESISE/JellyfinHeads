@@ -2,12 +2,14 @@ import sqlite3
 import random
 import os
 from http.server import HTTPServer, BaseHTTPRequestHandler
-from urllib.parse import unquote
+from urllib.parse import unquote, urlparse, parse_qs
+import socket
 
-JELLYFIN_DB = "~/.var/app/org.jellyfin.JellyfinServer/data/jellyfin/data/jellyfin.db"  # change this if necessary
+# change this to your jellyfin database path if needed 
+JELLYFIN_DB = "~/.var/app/org.jellyfin.JellyfinServer/data/jellyfin/data/jellyfin.db"  
 
 
-QUERY = """
+TV_QUERY = """
 WITH CharacterAppearances AS (
     SELECT
         series.Id AS SeriesId,
@@ -54,10 +56,10 @@ LEFT JOIN BaseItems personItem
 LEFT JOIN BaseItemImageInfos pii
     ON pii.ItemId = personItem.Id
 WHERE CAST(ca.EpisodeCount AS FLOAT) / sec.TotalEpisodes >= 0.30
-  AND pii.Path IS NOT NULL
+  AND pii.Path IS NOT NULL;
+"""
 
-UNION
-
+MOVIE_QUERY="""
 SELECT DISTINCT
     bi.Name AS Title,
     p.Name AS Performer,
@@ -79,21 +81,17 @@ WHERE bi.SeriesId IS NULL
   AND pii.Path IS NOT NULL;
 """
 
-def loadAllCharacters():
+
+def loadCharacters(query):
     conn = sqlite3.connect(JELLYFIN_DB)
     conn.row_factory = sqlite3.Row
 
-    rows = conn.execute(QUERY).fetchall()
-    print(str(len(rows)) + ' Entries')
+    rows = conn.execute(query).fetchall()
+
     conn.close()
+
     return rows
 
-
-def get_random_character():
-    if not rows:
-        return None
-
-    return random.choice(rows)
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -129,7 +127,27 @@ class Handler(BaseHTTPRequestHandler):
             self.send_error(404)
             return
 
-        character = get_random_character()
+        parsed = urlparse(self.path)
+        params = parse_qs(parsed.query)
+
+        include_tv = "tv" in params
+        include_movies = "movies" in params
+
+        # First visit defaults to both
+        if parsed.query == "":
+            include_tv = True
+            include_movies = True
+
+        if include_tv and include_movies:
+            rows = ALL_ROWS
+        elif include_tv:
+            rows = TV_ROWS
+        elif include_movies:
+            rows = MOVIE_ROWS
+        else:
+            rows = []
+
+        character = random.choice(rows) if rows else None
 
         if character:
             html = f"""
@@ -167,6 +185,15 @@ class Handler(BaseHTTPRequestHandler):
                         padding:15px 30px;
                         font-size:20px;
                     }}
+                    label {{
+                        font-size:20px;
+                        margin:0 10px;
+                    }}
+
+                    input[type=checkbox] {{
+                        transform:scale(1.5);
+                        margin-right:8px;
+                    }}
                 </style>
             </head>
 
@@ -188,8 +215,34 @@ class Handler(BaseHTTPRequestHandler):
 
             <br>
 
-            <form>
-                <button>New Character</button>
+            <form method="GET">
+
+            <label>
+                <input
+                    type="checkbox"
+                    name="tv"
+                    value="1"
+                    {"checked" if include_tv else ""}
+                >
+                TV
+            </label>
+
+            <label style="margin-left:25px;">
+                <input
+                    type="checkbox"
+                    name="movies"
+                    value="1"
+                    {"checked" if include_movies else ""}
+                >
+                Movies
+            </label>
+
+            <br><br>
+
+            <button type="submit">
+                New Character
+            </button>
+
             </form>
 
             </body>
@@ -205,6 +258,17 @@ class Handler(BaseHTTPRequestHandler):
 
 
 server = HTTPServer(("0.0.0.0", 5000), Handler)
-rows = loadAllCharacters()
-print("Server running on http://localhost:5000")
+TV_ROWS = loadCharacters(TV_QUERY)
+MOVIE_ROWS = loadCharacters(MOVIE_QUERY)
+ALL_ROWS = TV_ROWS + MOVIE_ROWS
+
+print(f"TV: {len(TV_ROWS)}")
+print(f"Movies: {len(MOVIE_ROWS)}")
+print(f"Total: {len(ALL_ROWS)}")
+
+s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+s.connect(('8.8.8.8', 1))  # connect() for UDP doesn't send packets
+ipAddress = s.getsockname()[0]
+
+print(f"Server running on http://{ipAddress}:5000")
 server.serve_forever()
