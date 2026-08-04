@@ -4,34 +4,8 @@ import os
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import unquote
 
-JELLYFIN_DB = "INSERT JELLYFIN DATABASE PATH"  # change this
+JELLYFIN_DB = "~/.var/app/org.jellyfin.JellyfinServer/data/jellyfin/data/jellyfin.db"  # change this if necessary
 
-QUERY_OLD = """
-SELECT
-    series.Name AS Title,
-    CASE
-        WHEN bi.SeriesId IS NOT NULL THEN 'Series'
-        ELSE bi.Type
-    END AS MediaType,
-    p.Name AS Performer,
-    pbim.Role AS Character,
-    pii.Path AS ImagePath
-FROM BaseItems bi
-JOIN PeopleBaseItemMap pbim
-    ON pbim.ItemId = bi.Id
-JOIN Peoples p
-    ON p.Id = pbim.PeopleId
-LEFT JOIN BaseItems series
-    ON series.Id = COALESCE(bi.SeriesId, bi.Id)
-LEFT JOIN BaseItems personItem
-    ON personItem.Name = p.Name
-LEFT JOIN BaseItemImageInfos pii
-    ON pii.ItemId = personItem.Id
-WHERE bi.Type IN ('Movie', 'Series', 'MediaBrowser.Controller.Entities.TV.Episode')
-  AND pbim.Role IS NOT NULL
-  AND pbim.Role <> ''
-  AND pii.Path IS NOT NULL
-"""
 
 QUERY = """
 WITH CharacterAppearances AS (
@@ -104,13 +78,18 @@ WHERE bi.SeriesId IS NULL
   AND lower(pbim.Role) not in ('producer', 'writer', 'director', 'himself', 'herself', 'self')
   AND pii.Path IS NOT NULL;
 """
-def get_random_character():
+
+def loadAllCharacters():
     conn = sqlite3.connect(JELLYFIN_DB)
     conn.row_factory = sqlite3.Row
 
     rows = conn.execute(QUERY).fetchall()
+    print(str(len(rows)) + ' Entries')
     conn.close()
+    return rows
 
+
+def get_random_character():
     if not rows:
         return None
 
@@ -226,6 +205,6 @@ class Handler(BaseHTTPRequestHandler):
 
 
 server = HTTPServer(("0.0.0.0", 5000), Handler)
-
+rows = loadAllCharacters()
 print("Server running on http://localhost:5000")
 server.serve_forever()
