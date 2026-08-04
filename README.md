@@ -1,6 +1,6 @@
 <img width="1915" height="871" alt="image" src="https://github.com/user-attachments/assets/f02e3e46-fe44-4dd5-b077-089fd4a8552c" />
 
-# Jellyfin Celebrity Heads
+# Jellyfin Heads
 
 This is a small little python server that scans your Jellyfin database, and gives you a random character to use in a game of celebrity heads. As this is based on your own Jellyfin library, this is intended to be used with the people who use your Jellyfin server and as such, the characters generated should be pretty guessable even if most are really obscure.
 
