@@ -2,9 +2,9 @@
 
 # Jellyfin Celebrity Heads
 
-This is a small little python server that scans your jellyfin database, and gives you a random character to use in a game of celebrity heads. As this is based on your own jellyfin library, you won't get a character that is impossible to guess. Don't like the character you've been given? Just hit New Character to instantly be given a new character.
+This is a small little python server that scans your jellyfin database, and gives you a random character to use in a game of celebrity heads. As this is based on your own jellyfin library, the characters generated should be pretty guessable, even if most are really obscure.
 
-Added filters to limit character selection to only TV, only Movies, or both.
+I've also added a filter to limit character selection to either TV or Movies.
 
 # How to use
 download this to a location of your choosing on your jellyfin server. Ensure the path to your jellyfin database is accurate and then run it with 
