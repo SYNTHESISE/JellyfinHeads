@@ -4,9 +4,12 @@ import os
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import unquote, urlparse, parse_qs
 import socket
+from pathlib import Path
 
-# change this to your jellyfin database path if needed 
-JELLYFIN_DB = "~/.var/app/org.jellyfin.JellyfinServer/data/jellyfin/data/jellyfin.db"  
+
+# CHANGE THIS IF NECESSARY
+tildePath = Path("~/.var/app/org.jellyfin.JellyfinServer/data/jellyfin/data/jellyfin.db")
+JELLYFIN_DB = tilde_path.expanduser()
 
 
 TV_QUERY = """
