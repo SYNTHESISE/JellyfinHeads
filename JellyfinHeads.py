@@ -9,7 +9,7 @@ from pathlib import Path
 
 # CHANGE THIS IF NECESSARY
 tildePath = Path("~/.var/app/org.jellyfin.JellyfinServer/data/jellyfin/data/jellyfin.db")
-JELLYFIN_DB = tilde_path.expanduser()
+JELLYFIN_DB = tildePath.expanduser()
 
 
 TV_QUERY = """
@@ -48,7 +48,8 @@ SELECT DISTINCT
     ca.SeriesName AS Title,
     ca.Performer,
     ca.Character,
-    pii.Path AS ImagePath
+    pii.Path AS ImagePath,
+	pii2.Path AS PosterPath
 FROM CharacterAppearances ca
 JOIN SeriesEpisodeCounts sec
     ON sec.SeriesId = ca.SeriesId
@@ -58,8 +59,12 @@ LEFT JOIN BaseItems personItem
     ON personItem.Name = p.Name
 LEFT JOIN BaseItemImageInfos pii
     ON pii.ItemId = personItem.Id
+LEFT JOIN BaseItemImageInfos pii2
+    ON pii2.ItemId = ca.SeriesId
 WHERE CAST(ca.EpisodeCount AS FLOAT) / sec.TotalEpisodes >= 0.30
-  AND pii.Path IS NOT NULL;
+  AND pii2.ImageType = 0
+  AND pii.Path IS NOT NULL
+  AND pii2.Path IS NOT NULL;
 """
 
 MOVIE_QUERY="""
@@ -67,7 +72,8 @@ SELECT DISTINCT
     bi.Name AS Title,
     p.Name AS Performer,
     pbim.Role AS Character,
-    pii.Path AS ImagePath
+    pii.Path AS ImagePath,
+	pii2.Path AS PosterPath
 FROM BaseItems bi
 JOIN PeopleBaseItemMap pbim
     ON pbim.ItemId = bi.Id
@@ -77,11 +83,15 @@ LEFT JOIN BaseItems personItem
     ON personItem.Name = p.Name
 LEFT JOIN BaseItemImageInfos pii
     ON pii.ItemId = personItem.Id
+LEFT JOIN BaseItemImageInfos pii2
+	ON pii2.ItemId = pbim.ItemId
 WHERE bi.SeriesId IS NULL
   AND pbim.Role IS NOT NULL
   AND pbim.Role <> ''
   AND lower(pbim.Role) not in ('producer', 'writer', 'director', 'himself', 'herself', 'self')
-  AND pii.Path IS NOT NULL;
+  AND pii2.ImageType = 0
+  AND pii.Path IS NOT NULL
+  AND pii2.Path IS NOT NULL;
 """
 
 
@@ -151,6 +161,11 @@ class Handler(BaseHTTPRequestHandler):
             rows = []
 
         character = random.choice(rows) if rows else None
+        print(f"""
+            character: {character["Character"]}
+            Title: {character["Title"]}
+            Performer: {character["Performer"]}
+        """)
 
         if character:
             html = f"""
@@ -215,7 +230,7 @@ class Handler(BaseHTTPRequestHandler):
             </div>
 
             <img src="/image/{character["ImagePath"]}">
-
+            <img src="/image/{character["PosterPath"]}">
             <br>
 
             <form method="GET">
