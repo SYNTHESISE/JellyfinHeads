@@ -6,7 +6,7 @@ from urllib.parse import unquote, urlparse, parse_qs
 import socket
 from pathlib import Path
 
-PORT = 5001
+PORT = 5000
 JELLYFIN_DB = Path("~/.var/app/org.jellyfin.JellyfinServer/data/jellyfin/data/jellyfin.db").expanduser()
 
 
