@@ -1,4 +1,5 @@
-<img width="1915" height="871" alt="image" src="https://github.com/user-attachments/assets/f02e3e46-fe44-4dd5-b077-089fd4a8552c" />
+<img width="1906" height="865" alt="image" src="https://github.com/user-attachments/assets/bcfc769f-0327-42ac-923c-e9bc4c3189ef" />
+
 
 # Jellyfin Heads
 
