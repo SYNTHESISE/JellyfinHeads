@@ -6,10 +6,8 @@ from urllib.parse import unquote, urlparse, parse_qs
 import socket
 from pathlib import Path
 
-
-# CHANGE THIS IF NECESSARY
-tildePath = Path("~/.var/app/org.jellyfin.JellyfinServer/data/jellyfin/data/jellyfin.db")
-JELLYFIN_DB = tildePath.expanduser()
+PORT = 5001
+JELLYFIN_DB = Path("~/.var/app/org.jellyfin.JellyfinServer/data/jellyfin/data/jellyfin.db").expanduser()
 
 
 TV_QUERY = """
@@ -98,25 +96,20 @@ WHERE bi.SeriesId IS NULL
 def loadCharacters(query):
     conn = sqlite3.connect(JELLYFIN_DB)
     conn.row_factory = sqlite3.Row
-
     rows = conn.execute(query).fetchall()
-
     conn.close()
-
     return rows
-
-
 
 class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         if self.path.startswith("/image/"):
-            image_path = unquote(self.path[len("/image/"):])
 
-            if os.path.exists(image_path):
+            imagePath = unquote(self.path[len("/image/"):])
+            if os.path.exists(imagePath):
                 self.send_response(200)
 
-                ext = os.path.splitext(image_path)[1].lower()
+                ext = os.path.splitext(imagePath)[1].lower()
 
                 content_types = {
                     ".jpg": "image/jpeg",
@@ -125,49 +118,43 @@ class Handler(BaseHTTPRequestHandler):
                     ".webp": "image/webp"
                 }
 
-                self.send_header(
-                    "Content-Type",
-                    content_types.get(ext, "application/octet-stream")
-                )
-
+                self.send_header("Content-Type", content_types.get(ext, "application/octet-stream"))
                 self.end_headers()
 
-                with open(image_path, "rb") as f:
-                    self.wfile.write(f.read())
+                with open(imagePath, "rb") as i:
+                    self.wfile.write(i.read())
 
                 return
 
             self.send_error(404)
             return
 
-        parsed = urlparse(self.path)
-        params = parse_qs(parsed.query)
+        parsedPath = urlparse(self.path)
+        params = parse_qs(parsedPath.query)
 
-        include_tv = "tv" in params
-        include_movies = "movies" in params
+        includeTV = "tv" in params or parsedPath.query == ""
+        includeMovies = "movies" in params or parsedPath.query == ""
 
-        # First visit defaults to both
-        if parsed.query == "":
-            include_tv = True
-            include_movies = True
 
-        if include_tv and include_movies:
+        if includeTV and includeMovies:
             rows = ALL_ROWS
-        elif include_tv:
+        elif includeTV:
             rows = TV_ROWS
-        elif include_movies:
+        elif includeMovies:
             rows = MOVIE_ROWS
         else:
             rows = []
 
+
         character = random.choice(rows) if rows else None
-        print(f"""
-            character: {character["Character"]}
-            Title: {character["Title"]}
-            Performer: {character["Performer"]}
-        """)
 
         if character:
+            print(f"""
+                character: {character["Character"]}
+                Title: {character["Title"]}
+                Performer: {character["Performer"]}
+            """)
+
             html = f"""
             <!DOCTYPE html>
             <html>
@@ -176,7 +163,7 @@ class Handler(BaseHTTPRequestHandler):
                 <style>
                     body {{
                         background:#111;
-                        color:white;
+                        color:#aaa;
                         text-align:center;
                         font-family:Arial;
                         padding-top:40px;
@@ -189,13 +176,21 @@ class Handler(BaseHTTPRequestHandler):
                     }}
 
                     .character {{
-                        font-size:36px;
+                        font-size:40px;
                         font-weight:bold;
+                        color:white;
                     }}
 
                     .actor {{
-                        font-size:22px;
-                        color:#aaa;
+                        margin-top:20px;
+                        margin-bottom:10px;
+                        font-size:26px;
+                    }}
+
+                    .title {{
+                        margin-top:10px;
+                        font-size:24px;
+                        color:#baaba;
                     }}
 
                     button {{
@@ -240,7 +235,7 @@ class Handler(BaseHTTPRequestHandler):
                     type="checkbox"
                     name="tv"
                     value="1"
-                    {"checked" if include_tv else ""}
+                    {"checked" if includeTV else ""}
                 >
                 TV
             </label>
@@ -250,7 +245,7 @@ class Handler(BaseHTTPRequestHandler):
                     type="checkbox"
                     name="movies"
                     value="1"
-                    {"checked" if include_movies else ""}
+                    {"checked" if includeMovies else ""}
                 >
                 Movies
             </label>
@@ -260,33 +255,39 @@ class Handler(BaseHTTPRequestHandler):
             <button type="submit">
                 New Character
             </button>
+            <br><br>
 
             </form>
 
             </body>
             </html>
             """
+
         else:
-            html = "<h1>No characters found</h1>"
+            html = "No characters found. Please ensure your jellyfin database has content loaded."
+
 
         self.send_response(200)
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.end_headers()
         self.wfile.write(html.encode("utf-8"))
 
+print("Scanning Database...")
 
-server = HTTPServer(("0.0.0.0", 5000), Handler)
 TV_ROWS = loadCharacters(TV_QUERY)
 MOVIE_ROWS = loadCharacters(MOVIE_QUERY)
 ALL_ROWS = TV_ROWS + MOVIE_ROWS
 
-print(f"TV: {len(TV_ROWS)}")
-print(f"Movies: {len(MOVIE_ROWS)}")
-print(f"Total: {len(ALL_ROWS)}")
+print(f"TV Characters: {len(TV_ROWS)}")
+print(f"Movie Characters: {len(MOVIE_ROWS)}")
+print(f"Total Characters: {len(ALL_ROWS)}")
 
+#Get local IP address so the user clearly knows how to access this - although might not always be accurate
 s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 s.connect(('8.8.8.8', 1))  # connect() for UDP doesn't send packets
 ipAddress = s.getsockname()[0]
 
-print(f"Server running on http://{ipAddress}:5000")
+print(f"Server running on http://{ipAddress}:{PORT}")
+
+server = HTTPServer(("0.0.0.0", PORT), Handler)
 server.serve_forever()
