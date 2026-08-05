@@ -15,7 +15,7 @@ Tested on linux with jellyfin server 10.11.11
 [python3](https://www.python.org/)
 
 # How to use
-Ensure the path to your Jellyfin database is accurate and then run the server with 
+Ensure the path to your Jellyfin database within JellyfinHeads.py is accurate and then run the server with 
 >python3 JellyfinHeads.py
 
 Then open a web browser and navigate to your servers IP address on port 5000.
