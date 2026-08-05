@@ -10,7 +10,9 @@ No internet connection necessary, no pulling data from other sources. This runs 
 Tested on linux with jellyfin server 10.11.11
 
 # Requirements
-python 3
+[Jellyfin](https://github.com/jellyfin/jellyfin)
+
+[python3](https://www.python.org/)
 
 # How to use
 Ensure the path to your Jellyfin database is accurate and then run the server with 
