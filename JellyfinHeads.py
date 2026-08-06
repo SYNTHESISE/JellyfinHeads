@@ -8,7 +8,7 @@ from pathlib import Path
 
 
 #-------------CHANGE BELOW VALUES IF REQUIRED------------------------------------------------------------
-PORT = 5001
+PORT = 5000
 JELLYFIN_DB = Path("~/.var/app/org.jellyfin.JellyfinServer/data/jellyfin/data/jellyfin.db").expanduser()
 #--------------------------------------------------------------------------------------------------------
 
