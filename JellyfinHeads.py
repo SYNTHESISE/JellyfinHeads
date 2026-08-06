@@ -6,8 +6,11 @@ from urllib.parse import unquote, urlparse, parse_qs
 import socket
 from pathlib import Path
 
-PORT = 5000
+
+#-------------CHANGE BELOW VALUES IF REQUIRED------------------------------------------------------------
+PORT = 5001
 JELLYFIN_DB = Path("~/.var/app/org.jellyfin.JellyfinServer/data/jellyfin/data/jellyfin.db").expanduser()
+#--------------------------------------------------------------------------------------------------------
 
 
 TV_QUERY = """
@@ -17,7 +20,8 @@ WITH CharacterAppearances AS (
         series.Name AS SeriesName,
         p.Name AS Performer,
         pbim.Role AS Character,
-        COUNT(DISTINCT bi.Id) AS EpisodeCount
+        COUNT(DISTINCT bi.Id) AS EpisodeCount,
+		bi.Genres
     FROM BaseItems bi
     JOIN PeopleBaseItemMap pbim
         ON pbim.ItemId = bi.Id
@@ -47,7 +51,8 @@ SELECT DISTINCT
     ca.Performer,
     ca.Character,
     pii.Path AS ImagePath,
-	pii2.Path AS PosterPath
+	pii2.Path AS PosterPath,
+	ca.Genres AS Genres
 FROM CharacterAppearances ca
 JOIN SeriesEpisodeCounts sec
     ON sec.SeriesId = ca.SeriesId
@@ -71,7 +76,8 @@ SELECT DISTINCT
     p.Name AS Performer,
     pbim.Role AS Character,
     pii.Path AS ImagePath,
-	pii2.Path AS PosterPath
+	pii2.Path AS PosterPath,
+	bi.Genres AS Genres
 FROM BaseItems bi
 JOIN PeopleBaseItemMap pbim
     ON pbim.ItemId = bi.Id
@@ -84,6 +90,7 @@ LEFT JOIN BaseItemImageInfos pii
 LEFT JOIN BaseItemImageInfos pii2
 	ON pii2.ItemId = pbim.ItemId
 WHERE bi.SeriesId IS NULL
+  AND bi.UnratedType <> 'Series'
   AND pbim.Role IS NOT NULL
   AND pbim.Role <> ''
   AND lower(pbim.Role) not in ('producer', 'writer', 'director', 'himself', 'herself', 'self')
@@ -99,6 +106,17 @@ def loadCharacters(query):
     rows = conn.execute(query).fetchall()
     conn.close()
     return rows
+
+def getAllGenres(rows):
+    genres = set()
+    for r in rows:
+        for g in r["Genres"].split("|"):
+            if g != "":
+                genres.add(g)
+
+    sortedList = sorted(genres)
+    sortedList.insert(0, "All")
+    return sortedList
 
 class Handler(BaseHTTPRequestHandler):
 
@@ -134,25 +152,43 @@ class Handler(BaseHTTPRequestHandler):
 
         includeTV = "tv" in params or parsedPath.query == ""
         includeMovies = "movies" in params or parsedPath.query == ""
-
+        selectGenre = "genre" in params
 
         if includeTV and includeMovies:
             rows = ALL_ROWS
+            genreRows = ALL_GENRES
         elif includeTV:
             rows = TV_ROWS
+            genreRows = TV_GENRES
         elif includeMovies:
             rows = MOVIE_ROWS
+            genreRows = MOVIE_GENRES
         else:
             rows = []
+            genreRows = []
 
 
-        character = random.choice(rows) if rows else None
+        genre = "All"
+        if selectGenre and "All" not in params["genre"] and params["genre"][0] in genreRows:
+            character = random.choice(rows) if rows else None
+            genre = params["genre"]
+
+            while genre[0] not in character["Genres"]:
+                character = random.choice(rows) if rows else None
+        else:
+            character = random.choice(rows) if rows else None
+
+        genreOptionsHTML = ""
+        for g in ALL_GENRES:
+            genreOptionsHTML = genreOptionsHTML + f"<option value=\"{g}\"{" selected" if g in genre else ""}>{g}</option>"
+
 
         if character:
             print(f"""
                 character: {character["Character"]}
                 Title: {character["Title"]}
                 Performer: {character["Performer"]}
+                Genres: {character["Genres"]}
             """)
 
             html = f"""
@@ -166,7 +202,7 @@ class Handler(BaseHTTPRequestHandler):
                         color:#aaa;
                         text-align:center;
                         font-family:Arial;
-                        padding-top:40px;
+                        padding-top:20px;
                     }}
 
                     img {{
@@ -190,6 +226,12 @@ class Handler(BaseHTTPRequestHandler):
                     .title {{
                         margin-top:10px;
                         font-size:24px;
+                        color:#baaba;
+                    }}
+
+                    .genre {{
+                        margin-top:5px;
+                        font-size:18px;
                         color:#baaba;
                     }}
 
@@ -218,6 +260,10 @@ class Handler(BaseHTTPRequestHandler):
 
             <div class="title">
                 {character["Title"]}
+            </div>
+
+            <div class="genre">
+                {" | ".join(character["Genres"].split("|"))}
             </div>
 
             <div class="actor">
@@ -251,6 +297,13 @@ class Handler(BaseHTTPRequestHandler):
             </label>
 
             <br><br>
+            <label> Genre:
+            <select name="genre" id="genre-select">
+            {genreOptionsHTML}
+            </select>
+            </label>
+
+            <br>
 
             <button type="submit">
                 New Character
@@ -277,6 +330,10 @@ print("Scanning Database...")
 TV_ROWS = loadCharacters(TV_QUERY)
 MOVIE_ROWS = loadCharacters(MOVIE_QUERY)
 ALL_ROWS = TV_ROWS + MOVIE_ROWS
+
+TV_GENRES = getAllGenres(TV_ROWS)
+MOVIE_GENRES = getAllGenres(MOVIE_ROWS)
+ALL_GENRES = getAllGenres(ALL_ROWS)
 
 print(f"TV Characters: {len(TV_ROWS)}")
 print(f"Movie Characters: {len(MOVIE_ROWS)}")
