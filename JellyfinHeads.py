@@ -5,15 +5,25 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import unquote, urlparse, parse_qs
 import socket
 from pathlib import Path
+import argparse
 
 
 #-------------CHANGE BELOW VALUES IF REQUIRED------------------------------------------------------------
+#Port of the web server
 PORT = 5000
+
+#Path to your jellyfin database file
 JELLYFIN_DB = Path("~/.var/app/org.jellyfin.JellyfinServer/data/jellyfin/data/jellyfin.db").expanduser()
+
+#Maximum list order for TV Characters, lower means less characters, higher gives you more obscure characters
+MAX_TV_LIST_ORDER = 8
+
+#Maximum list order for Movie Characters, lower means less characters, higher gives you more obscure characters
+MAX_MOVIE_LIST_ORDER = 5
 #--------------------------------------------------------------------------------------------------------
 
 
-TV_QUERY = """
+TV_QUERY = f"""
 WITH CharacterAppearances AS (
     SELECT
         series.Id AS SeriesId,
@@ -32,6 +42,7 @@ WITH CharacterAppearances AS (
     WHERE pbim.Role IS NOT NULL
       AND pbim.Role <> ''
 	  AND lower(pbim.Role) not in ('producer', 'writer', 'director', 'himself', 'herself', 'self')
+	  AND pbim.ListOrder <= {MAX_TV_LIST_ORDER}
     GROUP BY
         series.Id,
         series.Name,
@@ -70,7 +81,7 @@ WHERE CAST(ca.EpisodeCount AS FLOAT) / sec.TotalEpisodes >= 0.30
   AND pii2.Path IS NOT NULL;
 """
 
-MOVIE_QUERY="""
+MOVIE_QUERY = f"""
 SELECT DISTINCT
     bi.Name AS Title,
     p.Name AS Performer,
@@ -96,8 +107,10 @@ WHERE bi.SeriesId IS NULL
   AND lower(pbim.Role) not in ('producer', 'writer', 'director', 'himself', 'herself', 'self')
   AND pii2.ImageType = 0
   AND pii.Path IS NOT NULL
-  AND pii2.Path IS NOT NULL;
+  AND pii2.Path IS NOT NULL
+  AND pbim.ListOrder <= {MAX_MOVIE_LIST_ORDER};
 """
+
 
 
 def loadCharacters(query):
@@ -324,6 +337,38 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.end_headers()
         self.wfile.write(html.encode("utf-8"))
+
+parser = argparse.ArgumentParser()
+parser.add_argument(
+        "-p", "--port",
+        type=int,
+        default=PORT,
+        help=f"Port number to serve the webpage on (default: {PORT})"
+)
+parser.add_argument(
+        "-P", "--path",
+        type=str,
+        default=JELLYFIN_DB,
+        help=f"Path of your Jellyfin database file (default: {JELLYFIN_DB})"
+)
+parser.add_argument(
+        "-tl", "--tvlimit",
+        type=int,
+        default=MAX_TV_LIST_ORDER,
+        help=f"Max list order for TV characters (default: {MAX_TV_LIST_ORDER})"
+)
+parser.add_argument(
+        "-ml", "--movielimit",
+        type=int,
+        default=MAX_MOVIE_LIST_ORDER,
+        help=f"Max list order for Movie characters (default: {MAX_MOVIE_LIST_ORDER})"
+)
+
+args = parser.parse_args()
+PORT = args.port
+JELLYFIN_DB = args.path
+MAX_TV_LIST_ORDER = args.tvlimit
+MAX_MOVIE_LIST_ORDER = args.movielimit
 
 print("Scanning Database...")
 
